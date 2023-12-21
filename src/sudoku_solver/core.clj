@@ -1,8 +1,37 @@
 (ns sudoku-solver.core
   (:require [clojure.string :as str]))
 
-
+(def board
+  [[5 3 0 0 7 0 0 0 0]
+   [6 0 0 1 9 5 0 0 0]
+   [0 9 8 0 0 0 0 6 0]
+   [8 0 0 0 6 0 0 0 3]
+   [4 0 0 8 0 3 0 0 1]
+   [7 0 0 0 2 0 0 0 6]
+   [0 6 0 0 0 0 2 8 0]
+   [0 0 0 4 1 9 0 0 5]
+   [0 0 0 0 8 0 0 7 9]])
 (def size 9)
+(defn remove-spaces [s]
+  (str/replace s #"\s" ""))
+(defn read-sudoku []
+  (loop [i 0
+         board (vector)]
+    (if (< i 9)
+      (let [row (read-line)]
+        (if (< (count row) 8)
+          (do
+            (println "Every row must have 9 numbers!")
+            (println "Insert "i". row:")
+            (recur i board))
+          (do
+            (println "Insert "(inc 1)". row:")
+            (recur (inc i)  (conj board (vec (map #(Integer/parseInt (str %))(remove-spaces row)))))
+            )
+          )
+        )
+      board))
+  )
 
 (defn find-zero-indexes [board]
   (for [row (range 9)
@@ -22,17 +51,52 @@
   (-> (set (range 1 10))
       (clojure.set/difference (set numbers))
       vec))
+(defn get-row [p y]
+  (nth p y))
 
+(defn get-col [p x]
+  (map #(nth % x) p))
+(def one-to-nine (set (range 1 10)))
+(defn get-valid-values-at [p [y x]]
+  (let [used-values (concat (get-row p y)
+                            (get-col p x)
+                            (get-square p x y))]
+    (clojure.set/difference one-to-nine (set used-values))))
+(defn- cell-solutions [p c]
+  "Given a puzzle, returns a set of valid values at cell [x y]"
+  (if (zero? (get-in p c))
+    (map #(get-in (assoc-in p c %) c) (get-valid-values-at p c))
+    ))
+
+
+(cell-solutions board [1 1])
+(get-valid-values-at board [0 3])
+(defn divisible-by-three? [number]
+  (zero? (mod number 3)))
+(defn print-sudoku [board]
+  (doseq [[i row] (map vector (range) board)]
+    (if (divisible-by-three? i)
+      (println "  _________________________________"))
+    (print "| ")
+    (doseq [[j col] (map vector (range) row)]
+      (print col " ")
+      (when (zero? (mod (inc (.indexOf (str col) "\n")) 3))
+        (print ""))
+      (when (= (mod (inc j) 3) 0)
+        (print "|  ")))
+    (println))
+  (println "  _________________________________"))
 (defn solve-helper [indexes i new-board]
   (if (= i (count indexes)
          )
     (print-sudoku new-board)
     (let [current-index (nth indexes i)
           [row col] current-index
-          possible-numbers (missing-numbers
-                             (concat (get new-board row)
-                                     (map #(nth % col) new-board)
-                                     (get-square new-board col row)))]
+          possible-numbers (cell-solutions board [row col]
+                             ;(concat (get new-board row)
+                             ;        (map #(nth % col) new-board)
+                             ;        (get-square new-board col row))
+                             )]
       (println "row :" row "col :" col "Possible numbers:" possible-numbers )
       (if (seq possible-numbers)
         (recur indexes (inc i) (assoc-in new-board [row col] (rand-nth possible-numbers)))
@@ -43,7 +107,8 @@
          i 0
          new-board board]
     (solve-helper indexes i new-board)))
-;; Example usage:
+
+(solve board)
 (def example-board
   [[1 2 3 4 5 6 7 8 0]
    [0 5 6 7 8 9 1 2 3]
@@ -67,7 +132,7 @@
       )
     )
   )
-
+(sudoku-difficulty board)
 (def example-board-1
   [[1 2 0 4 5 6 7 8 0]
    [0 5 0 7 0 9 1 2 3]
@@ -134,17 +199,23 @@
           (do (println "Invalid choice. Try again.")
               (recur u)))))))
 
-(def board
-  [[5 3 0 0 7 0 0 0 0]
-   [6 0 0 1 9 5 0 0 0]
-   [0 9 8 0 0 0 0 6 0]
-   [8 0 0 0 6 0 0 0 3]
-   [4 0 0 8 0 3 0 0 1]
-   [7 0 0 0 2 0 0 0 6]
-   [0 6 0 0 0 0 2 8 0]
-   [0 0 0 4 1 9 0 0 5]
-   [0 0 0 0 8 0 0 7 9]])
-
+(defn choose-gender []
+  (println "\n===================================")
+  (println "1. Male\n2. Female\n")
+  (println "===================================")
+  (print "Select an option: ")
+  (flush)
+  (let [choice (read-line)]
+    (cond
+      (= choice "1")
+      "Male"
+      (= choice "2")
+      "Female"
+      :else
+      (do (println "Invalid choice. Try again.")
+          (recur))
+      ))
+  )
 (defn login []
   (let [user nil]
     (println "\n===================================")
@@ -200,65 +271,6 @@
 
   )
 
-(defn choose-gender []
-  (println "\n===================================")
-  (println "1. Male\n2. Female\n")
-  (println "===================================")
-  (print "Select an option: ")
-  (flush)
-  (let [choice (read-line)]
-    (cond
-      (= choice "1")
-      "Male"
-      (= choice "2")
-      "Female"
-      :else
-      (do (println "Invalid choice. Try again.")
-          (recur))
-      ))
-  )
 (login)
 
-(defn remove-spaces [s]
-  (str/replace s #"\s" ""))
 
-(defn read-sudoku []
-  (loop [i 0
-         board (vector)]
-    (if (< i 9)
-      (let [row (read-line)]
-        (if (< (count row) 8)
-          (do
-            (println "Every row must have 9 numbers!")
-            (println "Insert "i". row:")
-            (recur i board))
-          (do
-            (println "Insert "(inc 1)". row:")
-            (recur (inc i)  (conj board (vec (map #(Integer/parseInt (str %))(remove-spaces row)))))
-            )
-          )
-        )
-      board))
-  )
-
-(defn divisible-by-three? [number]
-  (zero? (mod number 3)))
-
-(solve (read-sudoku))
-(first board)
-(defn print-sudoku [board]
-  (doseq [[i row] (map vector (range) board)]
-    (if (divisible-by-three? i)
-      (println "  _________________________________"))
-    (print "| ")
-    (doseq [[j col] (map vector (range) row)]
-      (print col " ")
-      (when (zero? (mod (inc (.indexOf (str col) "\n")) 3))
-        (print ""))
-      (when (= (mod (inc j) 3) 0)
-        (print "|  ")))
-    (println))
-  (println "  _________________________________"))
-(print-sudoku board)
-
-(solve example-board)
