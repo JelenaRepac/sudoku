@@ -1,6 +1,4 @@
 (ns sudoku-solver.algorithms.logic-library
-
-
   (:gen-class)
   (:refer-clojure :exclude [==])
   (:require [clojure.string :as s]
@@ -28,6 +26,7 @@
 
 (defn solve
   [sudoku]
+  (println "Solving sudoku with algorithm LOGIC....")
   (let [board (vec (map #(if (zero? %) (lvar) %) sudoku))
         rows (indexed-sub-board board row-indexes)
         cols (indexed-sub-board board column-indexes)

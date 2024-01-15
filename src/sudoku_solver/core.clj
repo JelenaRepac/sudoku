@@ -1,6 +1,8 @@
 (ns sudoku-solver.core
   (:require [clojure.string :as str]
             [sudoku-solver.algorithms.logic-library :as ll]
+            [sudoku-solver.if-valid :as if-valid]
+            [criterium.core :as criterium]
             )
   (:refer-clojure :exclude [==]))
 (def board
@@ -27,7 +29,7 @@
             (println "Insert " i ". row:")
             (recur i board))
           (do
-            (println "Insert " (inc 1) ". row:")
+            (println "Insert " (inc i) ". row:")
             (recur (inc i) (conj board (vec (map #(Integer/parseInt (str %)) (remove-spaces row)))))
             )
           )
@@ -39,6 +41,10 @@
         col (range 9)
         :when (= 0 (get-in board [row col]))]
     [row col]))
+
+(if-valid/sudoku-solved? board)
+(print-sudoku board)
+(if-valid/subgrid-checker board 0 0)
 (defn get-square [p x y]
   (let [square-x (* 3 (quot x 3))
         square-y (* 3 (quot y 3))
@@ -81,7 +87,7 @@
 ;;backtracking algorithm
 (defn solve-helper [indexes i new-board]
   (if (= i (count indexes))
-    (print-sudoku new-board)
+    new-board
     (let [sorted-indexes (sort-by #(count-valid-numbers new-board %) indexes)
           current-index (nth sorted-indexes i)
           [row col] current-index
@@ -96,7 +102,8 @@
   (let [indexes (find-zero-indexes board)]
     (loop [i 0
            new-board board]
-      (solve-helper indexes i new-board))))
+      (solve-helper indexes i new-board))
+    ))
 
 (def board
   [[5 3 0 0 7 0 0 0 0]
@@ -142,12 +149,17 @@
    [3 1 0 0 0 5 9 7 0]
    [6 4 0 0 0 8 3 1 0]
    [0 7 8 3 0 2 6 4 5]])
-(defn create-user [username password gender age]
-  {:username username
-   :password password
-   :gender gender
-   :age age
-   })
+
+
+;;Ukoliko moj algoritam ne resi, pozivamo logic
+(defn check-sudoku [board]
+  (if  (if-valid/sudoku-solved? board)
+    (println "It is solved")
+      (ll/print-sudoku (ll/solve (flatten board))   )
+    )
+  )
+(check-sudoku board)
+(if-valid/sudoku-solved? (solve example-board-1))
 
 (defn -main []
   (println "\n===================================")
@@ -165,7 +177,8 @@
             (flush)
             (let [user-board (read-sudoku)]
               (print user-board)
-              (solve user-board))
+              (check-sudoku (solve user-board))
+              )
             (recur))
         (= choice "2")
         (do (println "\n===================================")
