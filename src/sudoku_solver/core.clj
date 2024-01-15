@@ -1,6 +1,8 @@
 (ns sudoku-solver.core
-  (:require [clojure.string :as str]))
-
+  (:require [clojure.string :as str]
+            [sudoku-solver.algorithms.logic-library :as ll]
+            )
+  (:refer-clojure :exclude [==]))
 (def board
   [[5 3 0 0 7 0 0 0 0]
    [6 0 0 1 9 5 0 0 0]
@@ -22,23 +24,21 @@
         (if (< (count row) 8)
           (do
             (println "Every row must have 9 numbers!")
-            (println "Insert "i". row:")
+            (println "Insert " i ". row:")
             (recur i board))
           (do
-            (println "Insert "(inc 1)". row:")
-            (recur (inc i)  (conj board (vec (map #(Integer/parseInt (str %))(remove-spaces row)))))
+            (println "Insert " (inc 1) ". row:")
+            (recur (inc i) (conj board (vec (map #(Integer/parseInt (str %)) (remove-spaces row)))))
             )
           )
         )
       board))
   )
-
 (defn find-zero-indexes [board]
   (for [row (range 9)
         col (range 9)
         :when (= 0 (get-in board [row col]))]
     [row col]))
-
 (defn get-square [p x y]
   (let [square-x (* 3 (quot x 3))
         square-y (* 3 (quot y 3))
@@ -46,93 +46,92 @@
         row2 (subvec (nth p (+ 1 square-y)) square-x (+ 3 square-x))
         row3 (subvec (nth p (+ 2 square-y)) square-x (+ 3 square-x))]
     (concat row1 row2 row3)))
-
-(defn missing-numbers [numbers]
-  (-> (set (range 1 10))
-      (clojure.set/difference (set numbers))
-      vec))
-(defn get-row [p y]
-  (nth p y))
-
-(defn get-col [p x]
-  (map #(nth % x) p))
-(def one-to-nine (set (range 1 10)))
-(defn get-valid-values-at [p [y x]]
-  (let [used-values (concat (get-row p y)
-                            (get-col p x)
-                            (get-square p x y))]
-    (clojure.set/difference one-to-nine (set used-values))))
-(defn- cell-solutions [p c]
-  "Given a puzzle, returns a set of valid values at cell [x y]"
-  (if (zero? (get-in p c))
-    (map #(get-in (assoc-in p c %) c) (get-valid-values-at p c))
-    ))
-
-
-(cell-solutions board [1 1])
-(get-valid-values-at board [0 3])
 (defn divisible-by-three? [number]
   (zero? (mod number 3)))
 (defn print-sudoku [board]
   (doseq [[i row] (map vector (range) board)]
     (if (divisible-by-three? i)
-      (println "  _________________________________"))
+      (println " _________________________________"))
     (print "| ")
     (doseq [[j col] (map vector (range) row)]
       (print col " ")
       (when (zero? (mod (inc (.indexOf (str col) "\n")) 3))
         (print ""))
       (when (= (mod (inc j) 3) 0)
-        (print "|  ")))
+        (print "| ")))
     (println))
-  (println "  _________________________________"))
+  (println " _________________________________"))
+
+(defn valid-numbers [board row col]
+  (let [row-values (get board row)
+        col-values (map #(nth % col) board)
+        square-values (get-square board col row)]
+    (->> (range 1 10)
+         (filter (fn [num]
+                   (not-any? #{num} (concat row-values col-values square-values)))))))
+(defn count-valid-numbers-for-zeroes [board]
+  (for [row (range 9)
+        col (range 9)
+        :when (= (get-in board [row col]) 0)]
+    [row col (count (valid-numbers board row col))]))
+;;pocinjemo od onih koji imaju samo jednu opciju
+(defn count-valid-numbers [board [row col]]
+  (let [possible-numbers (valid-numbers board row col)]
+    (count possible-numbers)))
+;;backtracking algorithm
 (defn solve-helper [indexes i new-board]
-  (if (= i (count indexes)
-         )
+  (if (= i (count indexes))
     (print-sudoku new-board)
-    (let [current-index (nth indexes i)
+    (let [sorted-indexes (sort-by #(count-valid-numbers new-board %) indexes)
+          current-index (nth sorted-indexes i)
           [row col] current-index
-          possible-numbers (cell-solutions board [row col]
-                             ;(concat (get new-board row)
-                             ;        (map #(nth % col) new-board)
-                             ;        (get-square new-board col row))
-                             )]
-      (println "row :" row "col :" col "Possible numbers:" possible-numbers )
+          possible-numbers (valid-numbers new-board row col)]
+      ;;(println "row :" row "col :" col "Possible numbers:" possible-numbers)
       (if (seq possible-numbers)
-        (recur indexes (inc i) (assoc-in new-board [row col] (rand-nth possible-numbers)))
+        (if (= 1 (count possible-numbers))
+          (recur indexes (inc i) (assoc-in new-board [row col] (first possible-numbers)))
+          (recur indexes (inc i) new-board))
         (recur indexes (inc i) new-board)))))
-
 (defn solve [board]
-  (loop [indexes (find-zero-indexes board)
-         i 0
-         new-board board]
-    (solve-helper indexes i new-board)))
+  (let [indexes (find-zero-indexes board)]
+    (loop [i 0
+           new-board board]
+      (solve-helper indexes i new-board))))
 
-(solve board)
+(def board
+  [[5 3 0 0 7 0 0 0 0]
+   [6 0 0 1 9 5 0 0 0]
+   [0 9 8 0 0 0 0 6 0]
+   [0 0 0 0 6 0 0 0 3]
+   [4 0 0 8 0 3 0 0 1]
+   [7 0 0 0 2 0 0 0 6]
+   [0 6 0 0 0 0 2 8 0]
+   [0 0 0 4 1 9 0 0 5]
+   [0 0 0 0 8 0 0 7 9]])
 (def example-board
-  [[1 2 3 4 5 6 7 8 0]
-   [0 5 6 7 8 9 1 2 3]
-   [7 8 0 0 2 3 4 5 6]
-   [2 3 1 5 0 4 8 0 7]
-   [5 6 4 8 9 7 2 3 1]
-   [8 9 7 2 3 1 5 0 4]
-   [3 1 2 6 0 5 0 7 8]
-   [6 4 0 9 7 8 3 0 2]
-   [0 7 8 3 1 2 0 0 5]])
+  [[0 0 0 2 6 0 7 0 1]
+   [6 8 0 0 7 0 0 9 0]
+   [1 9 0 0 0 4 5 0 0]
+   [8 2 0 1 0 0 0 4 0]
+   [0 0 4 6 0 2 9 0 0]
+   [0 5 0 0 0 3 0 2 8]
+   [0 0 9 3 0 0 0 7 4]
+   [0 4 0 0 5 0 0 3 6]
+   [7 0 3 0 1 8 0 0 0]])
 
+;(solve board)
 (defn count-filled-cells [board]
   (count (filter #(not= 0 %) (flatten board))))
-
 (defn sudoku-difficulty [board]
   (let [filled-cells (count-filled-cells board)]
     (cond
-      (<= filled-cells 20 ) "Hard"
-      (<= filled-cells 35 ) "Medium"
+      (<= filled-cells 20) "Hard"
+      (<= filled-cells 35) "Medium"
       :else "Easy"
       )
     )
   )
-(sudoku-difficulty board)
+;(sudoku-difficulty board)
 (def example-board-1
   [[1 2 0 4 5 6 7 8 0]
    [0 5 0 7 0 9 1 2 3]
@@ -143,134 +142,74 @@
    [3 1 0 0 0 5 9 7 0]
    [6 4 0 0 0 8 3 1 0]
    [0 7 8 3 0 2 6 4 5]])
-
-(defn create-user [username password gender age ]
+(defn create-user [username password gender age]
   {:username username
    :password password
    :gender gender
    :age age
    })
 
-(defn -main [u1]
-  (let [user u1]
-    (println "\n===================================")
-    (print (str "SUDOKU ++\t" (:username user) "!"))
-    (loop [u user]
-      (println "\n===================================")
-      (println "1. Solve your sudoku\n2. Solve our sudoku \n3. Find out difficulty level \n4. Exit")
-      (println "===================================")
-      (print "Select an option: ")
-      (flush)
-      (let [choice (read-line)]
-        (cond
-          (= choice "1")
-          (do (println "Insert 1. row: ")
-              (flush)
-              (let [user-board (read-sudoku)]
-                (print user-board)
-                (solve user-board))
-              (recur u))
-
-          (= choice "2")
-          (do (println "Solve our sudoku: ")
-              (flush)
-              ; Implement the logic to solve your Sudoku board
-              (println "Solving our Sudoku board...")
-              (recur u))
-
-          (= choice "3")
-          (do
-            (println "Find out difficulty level:")
-            (flush)
-            (let [user-board board
-                  difficulty (sudoku-difficulty user-board)]
-              (println "               SUDOKU")
-              (print-sudoku user-board)
-              (println "#####################################")
-              (println (str "Difficulty Level: " difficulty)))
-            (println "#####################################")
-            (recur u))
-
-          (= choice "4")
-          (do (println "Goodbye!")
-              u)
-
-          :else
-          (do (println "Invalid choice. Try again.")
-              (recur u)))))))
-
-(defn choose-gender []
+(defn -main []
   (println "\n===================================")
-  (println "1. Male\n2. Female\n")
-  (println "===================================")
-  (print "Select an option: ")
-  (flush)
-  (let [choice (read-line)]
-    (cond
-      (= choice "1")
-      "Male"
-      (= choice "2")
-      "Female"
-      :else
-      (do (println "Invalid choice. Try again.")
-          (recur))
-      ))
-  )
-(defn login []
-  (let [user nil]
+  (println "SUDOKU ++")
+  (loop []
     (println "\n===================================")
-    (print "SUDOKU ++ login page!")
-    (loop [u user]
-      (println "\n===================================")
-      (println "1. Create account\n2. Login\n3. Exit")
-      (println "===================================")
-      (print "Select an option: ")
-      (flush)
-      (let [choice (read-line)]
-        (cond
-          (= choice "1")
-          (do (println "Enter username:")
-              (flush)
-              (let [username (read-line)]
-                (println "Enter password:")
-                (flush)
-                (let [password (read-line)]
-                  (println "Enter gender:")
-                  (flush)
-                  (let [gender (choose-gender)]
-                    (println "Enter age:")
+    (println "1. Solve your sudoku\n2. Solve our sudoku \n3. Find out difficulty level \n4. Exit")
+    (println "===================================")
+    (print "Select an option: ")
+    (flush)
+    (let [choice (read-line)]
+      (cond
+        (= choice "1")
+        (do (println "Insert 1. row: ")
+            (flush)
+            (let [user-board (read-sudoku)]
+              (print user-board)
+              (solve user-board))
+            (recur))
+        (= choice "2")
+        (do (println "\n===================================")
+            (println "1. SUDOKU ++ ALGORITHM\n2. ALGORITHM LOGIC LIBRARY \n")
+            (println "===================================")
+            (print "Select an algorithm: ")
+            (flush)
+            (let [alg (read-line)]
+              (cond
+                (= alg "1")
+                (do (println "Solve our sudoku: ")
                     (flush)
-                    (let [age (Integer/parseInt (read-line))]
-                      (recur (create-user username password gender age))
-                      )))
-                ))
+                    (print-sudoku board)
+                    (println "Solving our Sudoku board...")
+                    (println "SUDOKU ++ ALGORITHM")
+                    (time (solve board))
+                    (recur))
+                (= alg "2")
+                (do (println "Solve our sudoku: ")
+                    (flush)
+                    (print-sudoku board)
+                    (println "Solving our Sudoku board...")
+                    (println "ALGORITHM LOGIC LIBRARY")
+                    (time (ll/print-sudoku (ll/solve (into [] (flatten board)))))
+                    (recur))
+                :else
+                (recur))))
+        (= choice "3")
+        (do
+          (println "Find out difficulty level:")
+          (flush)
+          (let [user-board board
+                difficulty (sudoku-difficulty user-board)]
+            (println " SUDOKU")
+            (print-sudoku user-board)
+            (println "#####################################")
+            (println (str "Difficulty Level: " difficulty)))
+          (println "#####################################")
+          (recur))
+        (= choice "4")
+        (do (println "Goodbye!"))
+        :else
+        (do (println "Invalid choice. Try again.")
+            (recur))))))
 
-          (= choice "2")
-          (do (println "Enter username:")
-              (flush)
-              (let [username (read-line)]
-                (println "Enter password:")
-                (flush)
-                (let [password (read-line)]
-                  (if (and (= username (:username u))
-                           (= password (:password u)))
-                    (recur (-main u))
-                    (do (println "\n!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-                        (println "!!!Invalid username or password!!!")
-                        (println "!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!")
-                        (recur u))))
-                ;;(println (add-food u food-name calories))
-                ))
 
-
-          (= choice "3")
-          (println "Goodbye!")
-          :else
-          (do (println "Invalid choice. Try again.")
-              (recur u))))))
-
-  )
-
-(login)
-
-
+(-main)
