@@ -2,6 +2,8 @@
   (:require [clojure.string :as str]
             [sudoku-solver.algorithms.logic-library :as ll]
             [sudoku-solver.if-valid :as if-valid]
+            [clojure.core.logic :refer :all]
+            [sudoku-solver.algorithms.locked-candidate :as lc]
             [criterium.core :as criterium]
             )
   (:refer-clojure :exclude [==]))
@@ -15,9 +17,10 @@
    [0 6 0 0 0 0 2 8 0]
    [0 0 0 4 1 9 0 0 5]
    [0 0 0 0 8 0 0 7 9]])
-(def size 9)
+
 (defn remove-spaces [s]
   (str/replace s #"\s" ""))
+
 (defn read-sudoku []
   (loop [i 0
          board (vector)]
@@ -36,15 +39,13 @@
         )
       board))
   )
+
 (defn find-zero-indexes [board]
   (for [row (range 9)
         col (range 9)
         :when (= 0 (get-in board [row col]))]
     [row col]))
 
-(if-valid/sudoku-solved? board)
-(print-sudoku board)
-(if-valid/subgrid-checker board 0 0)
 (defn get-square [p x y]
   (let [square-x (* 3 (quot x 3))
         square-y (* 3 (quot y 3))
@@ -52,8 +53,10 @@
         row2 (subvec (nth p (+ 1 square-y)) square-x (+ 3 square-x))
         row3 (subvec (nth p (+ 2 square-y)) square-x (+ 3 square-x))]
     (concat row1 row2 row3)))
+
 (defn divisible-by-three? [number]
   (zero? (mod number 3)))
+
 (defn print-sudoku [board]
   (doseq [[i row] (map vector (range) board)]
     (if (divisible-by-three? i)
@@ -68,6 +71,7 @@
     (println))
   (println " _________________________________"))
 
+
 (defn valid-numbers [board row col]
   (let [row-values (get board row)
         col-values (map #(nth % col) board)
@@ -75,16 +79,20 @@
     (->> (range 1 10)
          (filter (fn [num]
                    (not-any? #{num} (concat row-values col-values square-values)))))))
+
 (defn count-valid-numbers-for-zeroes [board]
   (for [row (range 9)
         col (range 9)
         :when (= (get-in board [row col]) 0)]
     [row col (count (valid-numbers board row col))]))
+
+
 ;;pocinjemo od onih koji imaju samo jednu opciju
 (defn count-valid-numbers [board [row col]]
   (let [possible-numbers (valid-numbers board row col)]
     (count possible-numbers)))
-;;backtracking algorithm
+
+;;my algorithm
 (defn solve-helper [indexes i new-board]
   (if (= i (count indexes))
     new-board
@@ -126,19 +134,44 @@
    [0 4 0 0 5 0 0 3 6]
    [7 0 3 0 1 8 0 0 0]])
 
-;(solve board)
+(lc/solve-sudoku example-board)
 (defn count-filled-cells [board]
   (count (filter #(not= 0 %) (flatten board))))
+
+(defn unique-solutions? [board]
+  ;; You would implement a function to check if the puzzle has a unique solution
+  (rand-nth [true false]))
+
+(defn count-filled-cells-in-block [board row-start col-start]
+  (reduce + (for [i (range 3)
+                  j (range 3)]
+              (if (pos? (get-in board [(+ row-start i) (+ col-start j)]))
+                1
+                0))))
+
+(defn filled-cells-distribution [board]
+  (let [block-counts (for [row-start (range 0 9 3)
+                           col-start (range 0 9 3)]
+                       (count-filled-cells-in-block board row-start col-start))]
+    (if (apply = block-counts)
+      "Even distribution"
+      "Clustered distribution")))
 (defn sudoku-difficulty [board]
-  (let [filled-cells (count-filled-cells board)]
+  (let [filled-cells (count-filled-cells board)
+        distribution (filled-cells-distribution board)]
+    distribution))
+
+(defn sudoku-difficulty [board]
+  (let [filled-cells (count-filled-cells board)
+        ;;unique-solution (unique-solutions? board)
+        distribution (filled-cells-distribution board)]
+    (println distribution)
     (cond
-      (<= filled-cells 20) "Hard"
-      (<= filled-cells 35) "Medium"
-      :else "Easy"
-      )
-    )
-  )
-;(sudoku-difficulty board)
+       (<= filled-cells 20) "Very Hard"
+      (<= filled-cells 35)  "Hard")
+     (<= filled-cells 40)  "Medium")
+      :else "Easy")
+(sudoku-difficulty example-board-1)
 (def example-board-1
   [[1 2 0 4 5 6 7 8 0]
    [0 5 0 7 0 9 1 2 3]
@@ -155,11 +188,9 @@
 (defn check-sudoku [board]
   (if  (if-valid/sudoku-solved? board)
     (println "It is solved")
-      (ll/print-sudoku (ll/solve (flatten board))   )
+      (ll/print-sudoku (ll/solve (flatten board)))
     )
   )
-(check-sudoku board)
-(if-valid/sudoku-solved? (solve example-board-1))
 
 (defn -main []
   (println "\n===================================")
@@ -194,6 +225,7 @@
                     (print-sudoku board)
                     (println "Solving our Sudoku board...")
                     (println "SUDOKU ++ ALGORITHM")
+                    (print-sudoku (solve board))
                     (time (solve board))
                     (recur))
                 (= alg "2")
